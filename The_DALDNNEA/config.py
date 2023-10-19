@@ -1,4 +1,3 @@
-# sets the configuration parameters for NEAT
 from configparser import ConfigParser
 
 def load(file):
@@ -81,7 +80,7 @@ class Config:
     survival_threshold  = None # only the best 20% for each species is allowed to mate
     old_threshold       = None
     youth_threshold     = None
-    old_penalty         = None    # always in (0,1)
+    old_penalty         = None   
     youth_boost         = None    # always in (1,2)
     max_stagnation      = None
 

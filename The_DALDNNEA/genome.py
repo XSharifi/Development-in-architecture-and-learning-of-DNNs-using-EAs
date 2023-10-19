@@ -209,7 +209,6 @@ class LSTMGene(LayerGene):
             self._size = random.choice(self.layer_params['_size'])
 
     def decode(self, x):
-        # TODO remove hardcoded batch size
         inputdim = len(keras.backend.int_shape(x)[1:])
         if self._dropout:
             x = keras.layers.Dropout(self._dropout)(x)
@@ -296,9 +295,7 @@ class Connection(object):
         return s
 
     def decode(self, mod_inputs, mod_type):
-        # if there are multiple inputs they must be merged. Our choice for this is depthwise
-        # concatenation. This is more computationally expensive than the other common solution,
-        # summing. If input sizes don't match, they are downsampled to the smallest size
+
         if len(self._in) > 1:
             conn_inputs = []
             for layer in self._in[:]:
@@ -308,7 +305,6 @@ class Connection(object):
                     print(str(self))
                     raise KeyError
             # The below code uses MaxPooling layers to downsample convolutional layers
-            # TODO add code to downsample dense layers
             if mod_type == 'CONV':
                 conn_in_sizes = []
                 for i in range(len(conn_inputs)):
@@ -326,6 +322,8 @@ class Connection(object):
                 mod_inputs[-1] = x
             else:
                 mod_inputs[layer._id] = layer.decode(x)
+
+
     def copy(self):
         return Connection(self._in.copy(), self._out.copy())
 

@@ -3,7 +3,6 @@ import random
 from .config import Config
 
 class Species(object):
-    """ A subpopulation containing similar individiduals """
     __id = 0 # global species id counter
 
     def __init__(self, first_individual, previous_id=None):
@@ -26,13 +25,6 @@ class Species(object):
 
     @classmethod
     def __get_new_id(cls, previous_id):
-        """
-        if previous_id is None:
-            cls.__id += 1
-            return cls.__id
-        else:
-            return previous_id
-        """
         if previous_id != None:
             cls.__id = previous_id
         cls.__id += 1
@@ -63,8 +55,6 @@ class Species(object):
         return s
 
     def TournamentSelection(self, k=2):
-        """ Tournament selection with size k (default k=2).
-            Make sure the population has at least k individuals """
         random.shuffle(self.__subpopulation)
 
         return max(self.__subpopulation[:k])
@@ -81,7 +71,6 @@ class Species(object):
             print("Species %d, with length %d is empty! Why? " % \
                   (self.__id, len(self)))
         else:  # controls species no improvement age
-            # if no_improvement_age > threshold, species will be removed
             if current > self.__last_avg_fitness:
                 self.__last_avg_fitness = current
                 self.no_improvement_age = 0
@@ -90,7 +79,7 @@ class Species(object):
 
             return current
 
-    def reproduce(self):
+    def reproduce(self,type_chromo,fitness_evaluation):
         """ Returns a list of 'spawn_amount' new individuals """
 
         offspring = [] # new offspring for this species
@@ -127,23 +116,37 @@ class Species(object):
             self.spawn_amount -= 1
 
             if len(self) > 1:
-                # Selects two parents from the remaining species and
-                # produce a single individual.  Stanley selects at
-                # random, here we use tournament selection (although
-                # it is not clear if has any advantages)
                 parent1 = self.TournamentSelection()
                 parent2 = self.TournamentSelection()
 
                 assert parent1.species_id == parent2.species_id, \
                        "Parents has different species id."
-                child = parent1.crossover(parent2)
-                offspring.append(child.mutate())
+
+                if type_chromo == "Individual_chromosome":
+                    child = parent1.crossover( parent2 )
+                    parent1_acc = fitness_evaluation(parent1)[0]
+                    parent2_acc = fitness_evaluation(parent2)[0]
+                    if parent1_acc > parent2_acc:
+                        value = parent1.weight_crossover(parent2)
+                    else:
+                        value = parent2.weight_crossover( parent1 )
+                    child.setting_weights_of_last_layer(value[0],value[1])
+                    child.weight_mutation()
+
+                    offspring.append( child.mutate() )
+                else:
+
+                    child = parent1.crossover( parent2 )
+                    offspring.append( child.mutate() )
+
             else:
                 # mutate only
                 parent1 = self.__subpopulation[0]
                 # TODO: temporary hack
                 # the child needs a new id (not the father's)
                 child = parent1.crossover(parent1)
+                # if type_chromo == "Individual_chromosome":
+                #     child.weight_mutation()
                 offspring.append(child.mutate())
 
         # reset species (new members will be added again when speciating)

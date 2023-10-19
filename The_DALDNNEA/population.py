@@ -4,12 +4,11 @@ from . import species
 from . import chromosome
 import pickle as pickle
 from . import visualize
+from . import DALDNNEA
 
 
 class Population(object):
-    """ Manages all the species  """
-    evaluate = None # Evaluates the entire population. You need to override
-                    # this method in your experiments
+    evaluate = None
 
     def __init__(self, size=Config.pop_size, chromo_type=None, co_pop=None, \
             checkpoint_file=None, debug=None):
@@ -19,13 +18,10 @@ class Population(object):
         self.__co_population = co_pop
         self.__chromo_type = chromo_type
         if checkpoint_file:
-            # start from a previous point: creates an 'empty'
-            # population and point its __dict__ to the previous one
             self.__resume_checkpoint(checkpoint_file)
         else:
-            # total population size
             self.__popsize = size
-            # currently living species
+            # currently species
             self.__species = []
 
             # species history
@@ -44,39 +40,28 @@ class Population(object):
     species_log = property(lambda self: self.__species_log)
 
     def __resume_checkpoint(self, checkpoint):
-        """ Resumes the simulation from a previous saved point. """
         try:
-            #file = open(checkpoint)
+
             file = gzip.open(checkpoint)
         except IOError:
             raise
         print('Resuming from a previous point: %s' %checkpoint)
-        # when unpickling __init__ is not called again
         previous_pop = pickle.load(file)
         self.__dict__ = previous_pop.__dict__
 
         print('Loading random state')
         rstate = pickle.load(file)
         random.setstate(rstate)
-        #random.jumpahead(1)
         file.close()
 
     def __create_checkpoint(self, report):
-        """ Saves the current simulation state. """
-        #from time import strftime
-        # get current time
-        #date = strftime("%Y_%m_%d_%Hh%Mm%Ss")
         if report:
             print('Creating checkpoint file at generation: %d' % \
                   self.__generation)
 
-        # dumps 'self'
-        #file = open('checkpoint_'+str(self.__generation), 'w')
         file = gzip.open(self.name+'checkpoint_'+ \
                          str(self.__generation), 'w', compresslevel = 5)
-        # dumps the population
         pickle.dump(self, file, protocol=2)
-        # dumps the current random state
         pickle.dump(random.getstate(), file, protocol=2)
         file.close()
 
@@ -94,6 +79,13 @@ class Population(object):
             g = genotypes.create_initial()
         else:
             g = genotypes.create_initial(self.__co_population)
+
+            # produced_network = DALDNNEA.produce_net(g,False)
+            # Doing something special
+            # w = produced_network.layers[len(produced_network.layers)-1].get_weights()[0]# W
+            # b = produced_network.layers[len(produced_network.layers)-1].get_weights()[1] # b
+            g.setting_weights_last_layer()
+
         return g
 
     def __repr__(self):
@@ -110,12 +102,7 @@ class Population(object):
     def __getitem__(self, key):
         return self.__population[key]
 
-    #def remove(self, chromo):
-    #    ''' Removes a chromosome from the population '''
-    #    self.__population.remove(chromo)
     def __speciate(self, report):
-        """ Group chromosomes into species by similarity """
-        # Speciate the population
         for individual in self:
             found = False
             for s in self.__species:
@@ -133,14 +120,9 @@ class Population(object):
                     self.first = False
                 else:
                     self.__species.append(species.Species(individual))
-        # python technical note:
-        # we need a "working copy" list when removing elements while looping
-        # otherwise we might end up having sync issues
+
         for s in self.__species[:]:
-            # this happens when no chromosomes are compatible with the species
             if len(s) == 0:
-                #if report:
-                #    print "Removing species %d for being empty" % s.id
                 # remove empty species
                 self.__species.remove(s)
         if self.__debug is not None:
@@ -162,14 +144,12 @@ class Population(object):
                 print('(minimum value has been reached)')
 
     def average_fitness(self):
-        """ Returns the average raw fitness of population """
         sum = 0.0
         for c in self:
             sum += c.fitness
         return sum/len(self)
 
     def get_species(self):
-        """ Used for getting a pointer to a random species."""
         indiv = random.choice(self.__population)
 
         for s in self.__species:
@@ -177,10 +157,8 @@ class Population(object):
                 return s
 
     def has_species(self, species):
-        """ Checks if a species is in the population."""
         try:
           ind = self.__species.index(species)
-          #this should be redundant
           if len(self.__species[ind]) == 0:
               self._species.pop(ind)
               return False
@@ -190,8 +168,7 @@ class Population(object):
             return False
 
     def stdeviation(self):
-        """ Returns the population standard deviation """
-        # first compute the average
+
         u = self.average_fitness()
         error = 0.0
 
@@ -209,10 +186,6 @@ class Population(object):
         return math.sqrt(error/len(self))
 
     def __compute_spawn_levels(self):
-        """ Compute each species' spawn amount (Stanley, p. 40) """
-
-        # 1. Boost if young and penalize if old
-        # TODO: does it really increase the overall performance?
         species_stats = []
         for s in self.__species:
             if s.age < Config.youth_threshold:
@@ -222,10 +195,6 @@ class Population(object):
             else:
                 species_stats.append(s.average_fitness())
 
-        # 2. Share fitness (only useful for computing spawn amounts)       
-        # More info: http://tech.groups.yahoo.com/group/neat/message/2203
-        # Sharing the fitness is only meaningful here  
-        # we don't really have to change each individual's raw fitness 
         total_average = 0.0
         for s in species_stats:
                 total_average += s
@@ -236,8 +205,6 @@ class Population(object):
                                         self.__popsize/total_average)))
 
     def __tournament_selection(self, k=2):
-        """ Tournament selection with size k (default k=2). 
-            Make sure the population has at least k individuals """
         random.shuffle(self.__population)   
 
         return max(self.__population[:k])     
@@ -257,8 +224,6 @@ class Population(object):
                 temp.append(0)
         self.__species_log.append(temp)
     def __population_diversity(self):
-        """ Calculates the diversity of population: total average weights, 
-            number of connections, nodes """
 
         num_nodes = 0
 
@@ -271,29 +236,16 @@ class Population(object):
     def getGen(self):
         return self.__generation
 
-    def epoch(self, g, report=True, save_best=False, checkpoint_interval = 10.0,
+    def epoch(self, g,fitness_evaluation, report=True, save_best=False, checkpoint_interval = 10.0,
         checkpoint_generation = None, name = ""):
         
         t0 = time.time() # for saving checkpoints
         self.name = name
-        """ Runs NEAT's genetic algorithm for n epochs.
-
-            Keyword arguments:
-            report -- show stats at each epoch (default True)
-            save_best -- save the best chromosome from each epoch
-            (default False)
-            checkpoint_interval -- time in minutes between saving checkpoints
-            (default 10 minutes)
-            checkpoint_generation -- time in generations between
-            saving checkpoints (default 0 -- option disabled)
-        """
-
         self.__generation += 1
 
         if report: print('\n ****** Generation %d ****** \n' % \
                self.__generation)
 
-        # Compute spawn levels for each remaining species
         self.__compute_spawn_levels()
 
         # Current generation's best chromosome
@@ -302,14 +254,11 @@ class Population(object):
         # Current population's average fitness
         self.__avg_fitness.append(self.average_fitness())
 
-        # Print some statistics
-        # Which species has the best chromosome?
         for s in self.__species:
             s.hasBest = False
             if self.best.species_id == s.id:
                 s.hasBest = True
 
-        # saves the best chromo from the current generation
         if save_best:
             filename = "best_chromo_" + str(self.__generation)
             if self.name != "":
@@ -318,15 +267,7 @@ class Population(object):
             pickle.dump(self.best, file)
             file.close()
 
-        #-----------------------------------------
-        #Prints chromosome's parents id:  {dad_id, mon_id} -> child_id
-        #for chromosome in self.__population:
-        #    print '{%3d; %3d} -> %3d' % \
-        #    (chromosome.parent1_id, chromosome.parent2_id, chromosome.id)
-        #-----------------------------------------
         if report:
-            #print 'Poluation size: %d \t Divirsity: %s' %\
-            #      (len(self), self.__population_diversity())
             print('Population\'s average fitness: %3.5f stdev: %3.5f' %\
                   (self.__avg_fitness[-1], self.stdeviation()))
             print('Best fitness: %2.12s - size: %s - species %s - id %s'%\
@@ -369,12 +310,17 @@ class Population(object):
         # --------- Producing new offspring ------------ #
         new_population = [] # next generation's population
 
+        str_chromo_type = ""
+        if self.__chromo_type == chromosome.IndividualChromo:
+            str_chromo_type = "Individual_chromosome"
+
+        elif self.__chromo_type == chromosome.ModuleChromo:
+            str_chromo_type = "module_chromosome"
+
         # Spawning new population
         for s in self.__species:
-            new_population.extend(s.reproduce())
+            new_population.extend(s.reproduce(str_chromo_type,fitness_evaluation))
 
-        # Remove stagnated species and its members
-        # (except if it has the best chromosome)
         for s in self.__species[:]:
             if s.no_improvement_age > Config.max_stagnation:
                 if s.hasBest == False:
@@ -382,8 +328,6 @@ class Population(object):
                         print("\n   Species %2d is stagnated: removing it" % s.id)
                     # removing species
                     self.__species.remove(s)
-                    # removing all the species' members
-                    #TODO: can be optimized!
                     for c in new_population[:]:
                         if c.species_id == s.id:
                             new_population.remove(c)
@@ -431,8 +375,8 @@ class Population(object):
                 for c in self:
                     # what if c is parent1 itself?
                     if c.species_id == parent1.species_id:
-                        child = parent1.crossover(c)
-                        new_population.append(child.mutate())
+                        child = parent1.crossover( c )
+                        new_population.append( child.mutate() )
                         found = True
                         break
                 if not found:
@@ -442,9 +386,7 @@ class Population(object):
 
         assert self.__popsize == len(new_population), \
                'Different population sizes!'
-        # Updates current population
         self.__population = new_population[:]
-        # Speciates the population
         self.__speciate(report)
 
         # how often a checkpoint will be created?
@@ -460,25 +402,3 @@ class Population(object):
 
         return 1
 
-
-
-if __name__ ==  '__main__' :
-
-    # sample fitness function
-    def eval_fitness(population):
-        for individual in population:
-            individual.fitness = 1.0
-
-    # set fitness function 
-    Population.evaluate = eval_fitness
-    
-    # creates the population
-    pop = Population()
-    # runs the simulation for 250 epochs
-    pop.epoch(250)       
-
-# Things left to check:
-# b) boost and penalize is done inside Species.shareFitness() method
-#    (as in Buckland's code)
-# d) ELE (Extinct Life Events) - something to be implemented as described
-#    in the NEAT4J version 

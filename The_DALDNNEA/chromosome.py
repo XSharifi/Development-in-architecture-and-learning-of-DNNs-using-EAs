@@ -3,28 +3,23 @@ from .config import Config
 from . import genome
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Activation, Dense, Dropout, Flatten
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
-from keras.layers.normalization import BatchNormalization
+from keras.layers import Input
 from keras import backend
+import os
+
 
 class Chromosome(object):
-    """ A chromosome data type for co-evolving deep neural networks """
     _id = 0
     def __init__(self, parent1_id, parent2_id, gene_type):
 
         self._id = self.__get_new_id()
 
-        # the type of ModuleGene or LayerGene the chromosome carries
         self._gene_type = gene_type
-        # how many genes of the previous type the chromosome has
         self._genes = []
 
         self.fitness = None
         self.num_use = None
         self.species_id = None
-
-        # my parents id: helps in tracking chromosome's genealogy
         self.parent1_id = parent1_id
         self.parent2_id = parent2_id
 
@@ -41,9 +36,7 @@ class Chromosome(object):
         raise NotImplementedError
 
     def crossover(self, other):
-        """ Crosses over parents' chromosomes and returns a child. """
 
-        # This can't happen! Parents must belong to the same species.
         assert self.species_id == other.species_id, 'Different parents species ID: %d vs %d' \
                                                          % (self.species_id, other.species_id)
 
@@ -84,7 +77,7 @@ class Chromosome(object):
             chromo1 = other
             chromo2 = self
 
-        return chomo1._genes-chromo2._genes
+        return chromo1._genes-chromo2._genes
 
     def size(self):
         """ Defines chromosome 'complexity': number of hidden nodes plus
@@ -112,12 +105,12 @@ class Chromosome(object):
             s += "\n\t" + str(ng)
         return s
 
-class BlueprintChromo(Chromosome):
+class IndividualChromo(Chromosome):
     """
-    A chromosome for deep neural network blueprints.
+    A chromosome for deep neural network IndividualChromo.
     """
     def __init__(self, parent1_id, parent2_id, module_pop, active_params={}, gene_type='MODULE'):
-        super(BlueprintChromo, self).__init__(parent1_id, parent2_id, gene_type)
+        super(IndividualChromo, self).__init__(parent1_id, parent2_id, gene_type)
         self._species_indiv = {}
         self._all_params = {
                 "learning_rate": [.0001, .1],
@@ -133,6 +126,99 @@ class BlueprintChromo(Chromosome):
                 }
         self._active_params = active_params
         self._module_pop = module_pop
+
+        self._weights_of_last_layer = np.zeros(shape = (256,Config.output_nodes)) # used for storing weight of last layer in the architecture
+        self._bias_last_layer = list()
+        self._randomly_trained_for_the_first_time = False
+        self._status_fitness = "uncertain"
+        self.setting_weights_last_layer()
+
+    def showing_shape_of_last_layer_weight(self):
+
+        print("\n ------->   shape of last layer of ind :", np.shape(self._weights_of_last_layer)[0])
+
+
+    def setting_weights_of_last_layer(self,w,b):
+
+        print("\n current shape of last layer of ind :",np.shape(self._weights_of_last_layer)[0])
+        print("\n new shape of weight of the last layer that be merged with :",np.shape(w)[0])
+
+        if np.shape(self._weights_of_last_layer)[0] > np.shape(w)[0]:
+            w_shape = int(np.shape(w)[0])
+            current_shape = int(np.shape(self._weights_of_last_layer)[0])
+            my_array = np.concatenate(
+                (w,self._weights_of_last_layer[np.arange(w_shape, current_shape), :]))
+
+            del self._weights_of_last_layer
+            del self._bias_last_layer
+
+            self._weights_of_last_layer = my_array
+            self._bias_last_layer = b
+
+            print("\n After merging on current shape of last layer of ind : current is bigger that new one",
+                  np.shape(self._weights_of_last_layer)[0])
+
+        elif np.shape(self._weights_of_last_layer)[0] == np.shape(w)[0]:
+            del self._weights_of_last_layer
+            del self._bias_last_layer
+            self._weights_of_last_layer = w
+            self._bias_last_layer = b
+
+            print("\n After merging on current shape of ind of the last layer : they are equal",
+                  np.shape(self._weights_of_last_layer)[0])
+
+        else:
+            print("\n --------  it is not acceptable because current must be bigger than new weight")
+
+
+
+
+    def setting_weights_last_layer(self):
+
+        w = np.array([0.01*np.random.randn() for i in range(2560)]).reshape(256,10)
+        b = np.array([0.01*np.random.randn() for i in range(10)])
+        self._weights_of_last_layer = w
+        self._bias_last_layer = b
+
+    def getting_weights_last_layer(self):
+        return self._weights_of_last_layer,self._bias_last_layer
+
+
+    def weight_crossover(self,othre_ind):
+
+        alfa = random.random()
+        if alfa < 0.66:
+            alfa = 1 - alfa
+        beta = 1 - alfa
+        w = np.array( [(alfa*x + beta*y) / 2 for x, y in zip( self._weights_of_last_layer.ravel(),
+                                    othre_ind._weights_of_last_layer.ravel() )] ) \
+            .reshape( 256, Config.output_nodes )
+
+        b = np.array( [(x + y) / 2 for x, y in zip( self._bias_last_layer.ravel(), othre_ind._bias_last_layer.ravel() )] )
+
+        return w,b
+
+    def weight_mutation(self):
+
+        dim = np.shape(self._weights_of_last_layer)
+
+        rate_of_weight_mutating = np.random.choice(int(dim[0])*int(dim[1]),1)
+
+        for _ in range( int(0.2 * (int(dim[0])*int(dim[1]))) ):
+            # choosing representation mutate of row and column of the last layer of model
+            # the last layer weights can be presented as a two dimension matrix (weights of last layer)
+            rep_mutate_row = np.random.choice( dim[0], 1 )
+            rep_mutate_column = np.random.choice( dim[1], 1 )
+            random_value = 0.01*np.random.randn()
+            self._weights_of_last_layer[rep_mutate_row][rep_mutate_column] += random_value
+
+        rate_of_bias_mutating = np.random.choice(int(np.shape(self._bias_last_layer)[0]),1)
+        for _ in range(int(0.2 * int(np.shape(self._bias_last_layer)[0]))):
+            #also, process of mutating is done for bias
+            rep_mutate_bias = 0.01*np.random.choice(int(np.shape(self._bias_last_layer)[0]),1)
+            self._bias_last_layer[rep_mutate_bias] += np.random.randn()
+
+
 
     def crossover(self, other):
         """ Crosses over parents' chromosomes and returns a child. """
@@ -186,7 +272,7 @@ class BlueprintChromo(Chromosome):
         return next
 
     def distance(self, other):
-        # measure distance between two blueprint chromosomes for speciation purpose
+        # measure distance between two individual chromosomes for speciation purpose
         dist = 0
         if len(self._genes) > len(other._genes):
             chromo1 = self
@@ -267,7 +353,7 @@ class BlueprintChromo(Chromosome):
         return self
 
     def _mutate_add_module(self):
-        """ Adds a module to the BluePrintChromo"""
+        """ Adds a module to the IndividualChromo"""
         ind = random.randint(0,len(self._genes))
         if Config.conv and ind > 0:
             valid_mod = False
@@ -284,7 +370,6 @@ class BlueprintChromo(Chromosome):
         self._genes.insert(ind, genome.ModuleGene(None, module, mod_type))
 
     def copy(self):
-        """ NOT TRUE COPY METHOD, returns pointer to self with valid species pointers"""
         for g in self._genes:
             if not (self._module_pop.has_species(g.module)):
                 new_species = self._module_pop.get_species()
@@ -305,7 +390,7 @@ class BlueprintChromo(Chromosome):
     def create_initial(cls, module_pop):
         c = cls(None, None, module_pop)
         n = random.randrange(2,5)
-        mod = module_pop.get_species()
+        mod = module_pop.get_species() # get a random module individual and then return its species
         mod_type = mod.members[0].type
         c._genes.append(genome.ModuleGene(None, mod, mod_type))
         for i in range(1,n):
@@ -393,13 +478,10 @@ class ModuleChromo(Chromosome):
         # Crossover layer genes
         for i, g1 in enumerate(parent1._genes):
             try:
-                # matching node genes: randomly selects parameters
                 child._genes.append(g1.get_child(parent2._genes[i]))
             except IndexError:
-                # copies extra genes from the fittest parent
                 child._genes.append(g1.copy())
             except TypeError:
-                # copies disjoint genes from the fittest parent
                 child._genes.append(g1.copy())
         child._connections = parent1._connections.copy()
         child.__connection_sort()
@@ -413,7 +495,6 @@ class ModuleChromo(Chromosome):
                             ind = parent1._genes.index(inlayer)
                             child._connections[i]._in[j] = child._genes[ind]
                     except ValueError:
-                        # below code used for debugging, this exception isn't actually handled
                         print(inlayer.type)
                         print(conn.input[j].type)
                         print(str(conn))
@@ -451,6 +532,12 @@ class ModuleChromo(Chromosome):
         return self
 
     def _mutate_add_layer(self):
+
+        # dirpath = os.getcwd()
+        #
+        # file_path = dirpath + '\\'+"checking_mutate_status.txt"
+        # status_file = open(file_path,'a+')
+
         r = random.random
         self.__connection_sort()
         # create new either conv or dense gene
@@ -473,6 +560,14 @@ class ModuleChromo(Chromosome):
         inconn = conns[inind].copy()
         inconn._out.append(ng)
 
+
+        # status_file.write( " ------------------------------------------------------------------------------- \n" )
+        # status_file.write("the number of connection in module chromosome : %d  \r  "%len( conns))
+        # status_file.write("len of the fist random range for in ind : %d \r  "%len( self._connections[inind - 1]._out ))
+        # TODO: it is done for controling the scale of the neural network
+        if len( self._connections[inind - 1]._out ) > 20:
+            return
+
         # if in front was chosen, add a new connection to the connection list
         if inind == 0:
             self._connections[0]._in.pop(0)
@@ -489,6 +584,14 @@ class ModuleChromo(Chromosome):
         # choose random out location
         outind = random.randrange(inind,len(conns))
         output = conns[outind].copy()
+
+        # status_file.write("len of second random range for outind : %d \r\n"%len( output._in ))
+        # TODO: it is done for controling the scale of the neural network
+        if len(output._in)>20:
+            #TODO : reseting everything for inind
+            self._connections[inind - 1]._out.pop(len(self._connections[inind-1]._out)-1)
+            return
+
         # if the output location is the same as the input location
         if outind == inind:
             # if this layer is the only layer that takes output, choose a new out location

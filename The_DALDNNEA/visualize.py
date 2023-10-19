@@ -2,18 +2,13 @@ import biggles
 import pydot
 import random
 from keras.utils import plot_model
+import matplotlib.pyplot as plt
 
 def draw_net(model, id=''):
-    ''' Receives a chromosome and draws a neural network with arbitrary topology. '''
     plot_model(model, to_file='phenotype'+id+'.svg')
 
 
 def plot_stats(stats, name=""):
-    ''' 
-    Plots the population's average and best fitness. 
-    Lisa Meeden added a name parameter for handling multiple visualizations
-    in co-evolution.
-    '''
     generation = [i for i in range(len(stats[0]))]
     
     fitness = [fit for fit in stats[0]]
@@ -31,13 +26,19 @@ def plot_stats(stats, name=""):
     plot.write_img(600, 300, name+'avg_fitness.svg')
     # width and height doesn't seem to affect the output! 
 
+def plot_stats_with_mathplot(fitness,avg_pop, name=""):
+
+    generation = [i for i in range( len( fitness ) )]
+    plt.plot( generation,fitness )
+    plt.plot(generation,avg_pop)
+    plt.title( 'Pop. avg and best fitness' )
+    plt.ylabel( "Fitness" )
+    plt.xlabel( "Generations" )
+    plt.legend( ['The best fitness'], loc='upper right' )
+    plt.show()
+
 
 def plot_species(species_log, name=""):
-    ''' 
-    Visualizes speciation throughout evolution. 
-    Lisa Meeden added a name parameter for handling multiple visualizations
-    in co-evolution.
-    '''
     plot = biggles.FramedPlot()
     plot.title = "Speciation"
     plot.ylabel = r"Size per Species"
