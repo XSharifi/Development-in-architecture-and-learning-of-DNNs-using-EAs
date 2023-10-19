@@ -41,7 +41,7 @@ then they will be saved in (.png format)
 - gzip 3.2
 ```
 
-##Contact
+## Contact
 If you have any questions, do not hesitate to contact us at zaniar.sharifi89@Gmail.com, we will be happy to assist.
 
 ## Dev infos
