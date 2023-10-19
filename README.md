@@ -42,7 +42,7 @@ then they will be saved in (.png format)
 ```
 
 ## Contact
-If you have any questions, do not hesitate to contact us at zaniar.sharifi89@Gmail.com, we will be happy to assist.
+If you have any questions, do not hesitate to contact me at zaniar.sharifi89@Gmail.com, I will be happy to assist.
 
 ## Dev infos
 Code developed and tested by [Zaniar Sharifi]
