@@ -1,4 +1,4 @@
-##Title: 
+## Title: 
 Development in architecture and learning of deep neural networks using evolutionary algorithms (DALDNNEA).
 
 Department: Faculty of Electrical and Computer Engineering University of Zanjan.
