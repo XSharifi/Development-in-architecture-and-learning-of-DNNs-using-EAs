@@ -7,7 +7,7 @@ Department: Faculty of Electrical and Computer Engineering University of Zanjan.
 
 In this work, DALDNNEA, a graph-based genetic algorithm method is developed. 
 It co-evolves CNN architectures and their last layer weights. 
-Moreover, It employs the Lamarckian method to tune an Individual's last layer weights;Lamarckian inheritance posits
+Moreover, It employs the Lamarckian method to tune an Individual's last layer weights; Lamarckian inheritance posits
 that acquired traits obtained during an organism's lifetime can be passed on to its offspring. 
 The proposed method draws inspiration from a well-known state-of-the-art NAS method, CoDeepNEAT, in terms of the structure of populations 
 and their associated operators. The DALDNNEA is evaluated on the MNIST, CIFAR-10, and Penn Treebank datasets.
